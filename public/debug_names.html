@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>IPL Debug - Name Matching</title>
+    <style>
+        body { font-family: monospace; background: #111; color: #eee; padding: 20px; }
+        .match { background: #222; padding: 10px; margin: 10px 0; border-radius: 8px; }
+        .found { color: #4f4; }
+        .missing { color: #f44; font-weight: bold; }
+        .mismatch { color: #ff0; }
+        button { background: #ff0; color: #000; padding: 10px 20px; font-weight: bold; cursor: pointer; border: none; border-radius: 4px; }
+        #log { white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+    <h1>IPL Fantasy - Name Debug Tool</h1>
+    <button onclick="runDebug()">RUN DEBUG</button>
+    <div id="log"></div>
+
+    <script>
+        const CRIC_API_KEY = "faad77ac-7dbc-4dc1-b180-8db6bbfb5df8";
+        const IPL_SERIES_ID = "87c62aac-bc3c-4738-ab93-19da0690488f";
+
+        const TEAM_PLAYERS = {
+            "Jatin": ["Suryakumar Yadav","Sunil Narine","Rashid Khan","Hardik Pandya","Nicholas Pooran","Axar Patel","Varun Chakaravarthy","Kagiso Rabada","Kuldeep Yadav","Abhishek Sharma","Tilak Varma"],
+            "Himanshu": ["Shubman Gill","Jasprit Bumrah","Ravi Bishnoi","Travis Head","Shivam Dube","Ruturaj Gaikwad","Sanju Samson","Trent Boult","Philip Salt","Ishan Kishan","Cameron Green"],
+            "Abhishek": ["Mohammed Siraj","KL Rahul","Rohit Sharma","Ravindra Jadeja","David Miller","Yuzvendra Chahal","Arshdeep Singh","Rishabh Pant","Jos Buttler","Nitish Kumar Reddy","Mohammed Shami"],
+            "Nikhil": ["Virat Kohli","Shreyas Iyer","Josh Hazlewood","Aiden Markram","Yashasvi Jaiswal","Vaibhav Sooryavanshi","Mitchell Marsh","Venkatesh Iyer","Marco Jansen","Sai Sudharsan","Prasidh Krishna"]
+        };
+
+        const ALL_PLAYERS = Object.values(TEAM_PLAYERS).flat();
+
+        const NAME_MAP = {
+            "Sheheferd": "Romario Shepherd",
+            "Rizvi": "Sameer Rizvi",
+            "Jurel": "Dhruv Jurel",
+            "Vaibhav arorra": "Vaibhav Arora",
+            "Nitinsh Rana": "Nitish Rana",
+            "Surya": "Suryakumar Yadav",
+            "Phil Salt": "Philip Salt",
+            "Phill Salt": "Philip Salt",
+            "PS Salt": "Philip Salt",
+            "V Kohli": "Virat Kohli",
+            "RG Sharma": "Rohit Sharma",
+            "H Pandya": "Hardik Pandya",
+            "JJ Bumrah": "Jasprit Bumrah",
+            "M Siraj": "Mohammed Siraj",
+            "M Shami": "Mohammed Shami",
+            "A Singh": "Arshdeep Singh",
+            "Y Chahal": "Yuzvendra Chahal",
+            "K Yadav": "Kuldeep Yadav",
+            "RA Jadeja": "Ravindra Jadeja",
+            "AR Patel": "Axar Patel",
+            "Varun Chakravarthy": "Varun Chakaravarthy",
+            "I Kishan": "Ishan Kishan",
+            "S Samson": "Sanju Samson",
+            "RR Pant": "Rishabh Pant",
+            "K Rahul": "KL Rahul",
+            "JC Buttler": "Jos Buttler",
+            "N Pooran": "Nicholas Pooran",
+            "S Gill": "Shubman Gill",
+            "RD Gaikwad": "Ruturaj Gaikwad",
+            "YBK Jaiswal": "Yashasvi Jaiswal",
+            "SK Yadav": "Suryakumar Yadav",
+            "T Varma": "Tilak Varma",
+            "SS Iyer": "Shreyas Iyer",
+            "D Padikkal": "Devdutt Padikkal",
+            "R Patidar": "Rajat Patidar",
+            "B Sudharsan": "Sai Sudharsan",
+            "AK Markram": "Aiden Markram",
+            "TM Head": "Travis Head",
+            "MR Marsh": "Mitchell Marsh",
+            "M Jansen": "Marco Jansen",
+            "S Dube": "Shivam Dube",
+            "A Sharma": "Abhishek Sharma",
+            "Nitish Reddy": "Nitish Kumar Reddy",
+            "HE Klaasen": "Heinrich Klaasen",
+            "V Sooryavanshi": "Vaibhav Sooryavanshi",
+            "P Krishna": "Prasidh Krishna"
+        };
+
+        const normalizeName = (rawName) => {
+            if (!rawName) return null;
+            const trimmed = rawName.trim();
+            return NAME_MAP[trimmed] || trimmed;
+        };
+
+        const log = document.getElementById('log');
+        function addLog(text, cls = '') {
+            const div = document.createElement('div');
+            div.className = cls;
+            div.textContent = text;
+            log.appendChild(div);
+        }
+
+        async function runDebug() {
+            log.innerHTML = '';
+            addLog('Fetching series info...');
+            
+            const seriesRes = await fetch(`https://api.cricapi.com/v1/series_info?apikey=${CRIC_API_KEY}&id=${IPL_SERIES_ID}`);
+            const seriesData = await seriesRes.json();
+            
+            if (seriesData.status !== 'success') {
+                addLog('API ERROR: ' + JSON.stringify(seriesData), 'missing');
+                return;
+            }
+
+            const matches = seriesData.data.matchList.filter(m => m.matchEnded);
+            addLog(`Found ${matches.length} completed matches`);
+            addLog('');
+
+            // Check only first 3 matches (API limit)
+            const toCheck = matches.slice(0, 3);
+            
+            for (const match of toCheck) {
+                addLog(`\n========== ${match.name} ==========`);
+                addLog(`Match ID: ${match.id}`);
+                addLog(`Teams: ${JSON.stringify(match.teams)}`);
+                
+                try {
+                    const scRes = await fetch(`https://api.cricapi.com/v1/match_scorecard?apikey=${CRIC_API_KEY}&id=${match.id}`);
+                    const scData = await scRes.json();
+                    
+                    if (!scData.data || !scData.data.scorecard) {
+                        addLog('No scorecard data!', 'missing');
+                        continue;
+                    }
+
+                    // Collect all API names
+                    const apiNames = new Set();
+                    const statsMap = {};
+                    
+                    scData.data.scorecard.forEach(inning => {
+                        addLog(`\nInning: "${inning.inning}"`);
+                        
+                        inning.batting?.forEach(b => {
+                            const rawName = b.batsman?.name;
+                            const normalized = normalizeName(rawName);
+                            apiNames.add(rawName);
+                            
+                            if (!statsMap[normalized]) statsMap[normalized] = { played: true };
+                            statsMap[normalized].runs = (statsMap[normalized].runs || 0) + (b.r || 0);
+                            statsMap[normalized].balls = (statsMap[normalized].balls || 0) + (b.b || 0);
+                        });
+                        
+                        inning.bowling?.forEach(bw => {
+                            const rawName = bw.bowler?.name;
+                            const normalized = normalizeName(rawName);
+                            apiNames.add(rawName);
+                            
+                            if (!statsMap[normalized]) statsMap[normalized] = { played: true };
+                            statsMap[normalized].wickets = (statsMap[normalized].wickets || 0) + (bw.w || 0);
+                            statsMap[normalized].overs = (statsMap[normalized].overs || 0) + (bw.o || 0);
+                        });
+                    });
+
+                    addLog('\n--- ALL API NAMES ---');
+                    Array.from(apiNames).sort().forEach(name => {
+                        const normalized = normalizeName(name);
+                        if (normalized !== name) {
+                            addLog(`  ${name} -> NORMALIZED TO -> ${normalized}`, 'mismatch');
+                        } else {
+                            addLog(`  ${name}`);
+                        }
+                    });
+
+                    addLog('\n--- MATCHING CHECK ---');
+                    ALL_PLAYERS.forEach(playerName => {
+                        const normalizedPlayer = normalizeName(playerName);
+                        const inStatsMap = statsMap[playerName] || statsMap[normalizedPlayer];
+                        const inApiNames = apiNames.has(playerName);
+                        const normalizedInApi = Array.from(apiNames).some(n => normalizeName(n) === normalizedPlayer);
+                        
+                        if (normalizedInApi) {
+                            if (inStatsMap) {
+                                const stats = statsMap[playerName] || statsMap[normalizedPlayer];
+                                addLog(`  ✅ ${playerName}: FOUND (runs=${stats.runs||0}, wickets=${stats.wickets||0})`, 'found');
+                            } else {
+                                addLog(`  ❌ ${playerName}: IN API BUT NOT IN STATSMAP!`, 'missing');
+                            }
+                        }
+                    });
+
+                    // Check for name mismatches - names in API that normalize to our player but don't match directly
+                    addLog('\n--- POTENTIAL NAME ISSUES ---');
+                    Array.from(apiNames).forEach(apiName => {
+                        const normalized = normalizeName(apiName);
+                        if (ALL_PLAYERS.includes(normalized) && apiName !== normalized) {
+                            addLog(`  ⚠️ API: "${apiName}" -> Normalized: "${normalized}" (via NAME_MAP)`, 'mismatch');
+                        }
+                        // Check if API name is close but not in NAME_MAP
+                        ALL_PLAYERS.forEach(p => {
+                            if (p !== apiName && p !== normalized) {
+                                // Check for partial match
+                                const pParts = p.toLowerCase().split(' ');
+                                const apiParts = apiName.toLowerCase().split(' ');
+                                const overlap = pParts.filter(pp => apiParts.includes(pp));
+                                if (overlap.length > 0 && overlap.length < Math.max(pParts.length, apiParts.length)) {
+                                    // Partial match - could be a problem
+                                    if (pParts[pParts.length-1] === apiParts[apiParts.length-1]) {
+                                        addLog(`  🔍 POSSIBLE MISMATCH: API="${apiName}" vs Team="${p}" (same last name)`, 'mismatch');
+                                    }
+                                }
+                            }
+                        });
+                    });
+
+                } catch(e) {
+                    addLog('ERROR: ' + e.message, 'missing');
+                }
+                
+                // Wait to avoid rate limit
+                await new Promise(r => setTimeout(r, 1000));
+            }
+            
+            addLog('\n\n===== DONE =====');
+        }
+    </script>
+</body>
+</html>
