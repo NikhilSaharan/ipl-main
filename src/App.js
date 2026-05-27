@@ -332,7 +332,13 @@ function App() {
 
       const getMatchNo = (name) => {
         const match = name.match(/(\d+)(st|nd|rd|th)\sMatch/i);
-        return match ? parseInt(match[1]) : 0;
+        if (match) return parseInt(match[1]);
+        if (/qualifier\s*1/i.test(name)) return 71;
+        if (/eliminator/i.test(name)) return 72;
+        if (/qualifier\s*2/i.test(name)) return 73;
+        if (/final/i.test(name)) return 74;
+        if (/qualifier/i.test(name)) return 71; // Fallback
+        return 0;
       };
 
       const pending = allMatches
